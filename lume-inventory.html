@@ -699,8 +699,11 @@ function closeAIPanel(){document.getElementById('ai-panel').classList.remove('op
 // ── AI CHAT ──────────────────────────────────────────────────
 function getCtx(){
   const today=new Date().toLocaleDateString('pt-PT',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  const lines=inventory.map(i=>`- ${i.name} (${i.cat}${i.espessura?' · '+i.espessura:''}): ${i.qty} ${i.unidade||'un.'} [mínimo: ${i.min}] → ${statusLabel(getStatus(i))}`);
-  return `Data: ${today}\n\nInventário atual da Virtual Neon (Supabase - tempo real):\n${lines.join('\n')}`;
+  const lines=inventory.map(i=>{
+    const spec = [i.espessura, i.measure].filter(Boolean).join(' · ');
+    return `- ${i.name}${spec?' ('+spec+')':''} | Categoria: ${i.cat} | Unidade: ${i.unidade||'un.'} | Stock: ${i.qty} | Mínimo: ${i.min} | Estado: ${statusLabel(getStatus(i))}`;
+  });
+  return `Data: ${today}\n\nINVENTÁRIO ATUAL DA VIRTUAL NEON (dados reais do Supabase):\n${lines.join('\n')}\n\nATENÇÃO: Cada linha tem espessura e medida entre parênteses. Usa SEMPRE esses valores exactos nas ordens de compra.`;
 }
 
 function getSysPrompt(){
@@ -719,22 +722,30 @@ RESPONSABILIDADES:
 CATEGORIAS DE MATERIAIS:
 Acrilico, PVC, ACM, Vinil, LEDs, Electrica, Telas, Consumíveis, Fixação
 
-REGRAS:
+REGRAS CRÍTICAS PARA ORDENS DE COMPRA:
+- Cada material no inventário tem: nome, espessura (ex: 3mm, 5mm, 10mm) e medida (ex: 2030×3050mm)
+- NUNCA mistures espessuras diferentes — se falta Acrílico Opala 10mm, a ordem é para 10mm, não para 4mm ou outra
+- SEMPRE inclui a espessura e a medida da chapa no nome do material na tabela
+- Usa EXATAMENTE os dados que receberes no inventário — não inventes nem estimes medidas
+- Se um material tem quantidade 0, é CRÍTICO. Se está abaixo do mínimo, é BAIXO.
+- Repõe sempre ao dobro do mínimo definido
+
+REGRAS GERAIS:
 - Respondes SEMPRE em português de Portugal (nunca português do Brasil)
 - Sê direto, profissional e objetivo
 - Quando há materiais críticos, prioriza-os sempre
-- Para ordens de compra, usa EXATAMENTE este formato:
 
+FORMATO OBRIGATÓRIO PARA ORDENS DE COMPRA:
 ═══════════════════════════════════
 ORDEM DE COMPRA — VIRTUAL NEON
 Data: [data de hoje]
 Ref: OC-[4 dígitos aleatórios]
 ═══════════════════════════════════
-FORNECEDOR: [fornecedor adequado ao material]
+FORNECEDOR: [fornecedor adequado ao tipo de material]
 
-MATERIAL             | QTD  | UNID
----------------------|------|----------
-[nome do material]   | [n]  | [unidade]
+MATERIAL                      | QTD  | UNID
+------------------------------|------|----------
+[nome + espessura + medida]   | [n]  | [unidade]
 
 NOTAS: [observações relevantes]
 Urgência: [Alta / Média / Baixa]
