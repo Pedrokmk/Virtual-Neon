@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html class="dark" lang="pt">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>LumeInventory | Virtual Neon</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    darkMode:"class",
+    theme:{extend:{colors:{
+      "on-surface":"#eeeef0","secondary":"#91f78e","tertiary":"#ffac54",
+      "surface-container-highest":"#232629","surface":"#0c0e10","error":"#ff716c",
+      "primary-container":"#00e3fd","on-surface-variant":"#aaabad","error-container":"#9f0519",
+      "secondary-container":"#006e1c","surface-container-low":"#111416",
+      "surface-container":"#171a1c","primary":"#81ecff","primary-fixed":"#00e3fd",
+      "tertiary-fixed":"#ff9800","surface-container-high":"#1d2023","on-secondary":"#005e17",
+      "tertiary-container":"#ff9800","outline-variant":"#46484a","on-primary":"#005762",
+      "on-secondary-container":"#e5ffde","on-error":"#490006","on-error-container":"#ffa8a3",
+      "on-primary-container":"#004d57"
+    },fontFamily:{headline:["Manrope"],body:["Inter"]}}}
+  }
+</script>
+<style>
+  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+  .no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+  #ai-panel{transform:translateX(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1)}
+  #ai-panel.open{transform:translateX(0)}
+  #ai-overlay{opacity:0;pointer-events:none;transition:opacity 0.3s ease}
+  #ai-overlay.open{opacity:1;pointer-events:all}
+  .bubble-ai{background:linear-gradient(135deg,#1d2023,#171a1c);border:1px solid rgba(129,236,255,0.12);border-radius:4px 18px 18px 18px}
+  .bubble-user{background:linear-gradient(135deg,rgba(129,236,255,0.15),rgba(0,212,236,0.08));border:1px solid rgba(129,236,255,0.2);border-radius:18px 4px 18px 18px}
+  .typing-dot{animation:typing-bounce 1.2s infinite;display:inline-block}
+  .typing-dot:nth-child(2){animation-delay:0.2s}.typing-dot:nth-child(3){animation-delay:0.4s}
+  @keyframes typing-bounce{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}
+  .alert-anim{animation:slide-in-top 0.4s ease forwards}
+  @keyframes slide-in-top{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .po-card{background:linear-gradient(135deg,#0f1a1c,#0c1416);border:1px solid rgba(129,236,255,0.2);border-radius:12px;font-family:'Courier New',monospace}
+  .thr-input{background:#111416;border:1px solid rgba(70,72,74,0.4);color:#81ecff;border-radius:8px;padding:2px 8px;width:64px;font-size:12px;text-align:center;font-weight:700}
+  .thr-input:focus{outline:none;border-color:rgba(129,236,255,0.6);color:#ffffff}
+  tbody tr{transition:background 0.15s ease}
+  #chat-messages::-webkit-scrollbar{width:4px}
+  #chat-messages::-webkit-scrollbar-thumb{background:rgba(129,236,255,0.15);border-radius:4px}
+  @keyframes glow-ping{0%,100%{box-shadow:0 0 4px rgba(255,113,108,0.6)}50%{box-shadow:0 0 14px rgba(255,113,108,1)}}
+  .glow-ping{animation:glow-ping 2s ease-in-out infinite}
+  .btn-q{background:rgba(129,236,255,0.07);border:1px solid rgba(129,236,255,0.15);border-radius:20px;padding:5px 12px;font-size:11px;color:#81ecff;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+  .btn-q:hover{background:rgba(129,236,255,0.15);border-color:rgba(129,236,255,0.35)}
+  .ai-fab{background:linear-gradient(135deg,#81ecff,#00d4ec);box-shadow:0 0 20px rgba(129,236,255,0.4),0 4px 15px rgba(0,0,0,0.4);transition:all 0.2s ease}
+  .ai-fab:hover{box-shadow:0 0 30px rgba(129,236,255,0.6);transform:scale(1.05)}.ai-fab:active{transform:scale(0.96)}
+  .nbadge{position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#ff716c;border-radius:50%;font-size:10px;font-weight:700;color:#490006;display:flex;align-items:center;justify-content:center;border:2px solid #0c0e10}
+  .skeleton{background:linear-gradient(90deg,#1d2023 25%,#232629 50%,#1d2023 75%);background-size:200% 100%;animation:skel 1.5s infinite}
+  @keyframes skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .sync-dot{width:6px;height:6px;border-radius:50%;background:#91f78e;display:inline-block;transition:background 0.3s}
+  .sync-dot.syncing{animation:pulse-sync 1s ease-in-out infinite;background:#ffac54}
+  .sync-dot.error{background:#ff716c}
+  @keyframes pulse-sync{0%,100%{opacity:1}50%{opacity:0.3}}
+  #toast{position:fixed;bottom:100px;right:24px;z-index:100;transform:translateY(20px);opacity:0;transition:all 0.3s ease;pointer-events:none}
+  #toast.show{transform:translateY(0);opacity:1}
+</style>
+</head>
+<body class="bg-surface text-on-surface" style="font-family:Inter,sans-serif;">
+
+<!-- TOAST -->
+<div id="toast" class="bg-surface-container-high border border-outline-variant/30 rounded-xl px-4 py-3 flex items-center gap-3 shadow-xl">
+  <span id="toast-icon" class="material-symbols-outlined text-secondary text-sm">check_circle</span>
+  <span id="toast-msg" class="text-sm font-medium"></span>
+</div>
+
+<!-- ALERT BANNER -->
+<div id="alert-banner" class="fixed top-16 left-0 w-full z-50 hidden px-4 py-2">
+  <div class="max-w-4xl mx-auto">
+    <div class="alert-anim flex items-center gap-3 bg-error-container/90 backdrop-blur-md border border-error/30 rounded-xl px-5 py-3 shadow-lg">
+      <div class="w-2 h-2 rounded-full bg-error glow-ping flex-shrink-0"></div>
+      <p id="alert-text" class="text-sm text-on-error-container font-medium flex-1"></p>
+      <button onclick="closeAlert()" class="text-on-error-container/60 hover:text-on-error-container ml-2">
+        <span class="material-symbols-outlined text-sm">close</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOP NAV -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#0c0e10] border-b border-outline-variant/10">
+  <div class="flex items-center gap-8">
+    <span class="text-xl font-black text-[#00E5FF] tracking-tighter" style="font-family:Manrope,sans-serif;">Virtual Neon</span>
+    <div class="hidden md:flex relative">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" style="font-size:18px;">search</span>
+      <input id="search-input" oninput="renderTable()" class="bg-surface-container-low border border-outline-variant/20 rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:outline-none focus:border-primary/40 transition-all" placeholder="Pesquisar materiais..." type="text">
+    </div>
+  </div>
+  <div class="flex items-center gap-4">
+    <div class="hidden md:flex items-center gap-2">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span id="sync-label" class="text-[10px] uppercase tracking-widest text-on-surface-variant">Supabase</span>
+    </div>
+    <div class="relative">
+      <button onclick="openAIPanel()" class="p-2 text-[#eeeef0]/60 hover:text-[#00E5FF] transition-colors">
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
+      <div id="alert-badge" class="nbadge hidden">!</div>
+    </div>
+    <button class="p-2 text-[#eeeef0]/60 hover:text-[#00E5FF] transition-colors">
+      <span class="material-symbols-outlined">settings</span>
+    </button>
+    <div class="h-8 w-8 rounded-full bg-surface-container-high border border-outline-variant/30 flex items-center justify-center text-xs font-bold text-primary">VN</div>
+  </div>
+</nav>
+
+<!-- SIDE NAV -->
+<aside class="hidden md:flex flex-col fixed left-0 top-0 bottom-0 py-8 w-64 bg-[#111416] z-40 border-r border-outline-variant/10">
+  <div class="px-6 mb-10 mt-16">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center">
+        <span class="material-symbols-outlined text-on-primary-container" style="font-size:18px;">precision_manufacturing</span>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-[#eeeef0]" style="font-family:Manrope,sans-serif;">The Atelier</h2>
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Signage Systems</p>
+      </div>
+    </div>
+  </div>
+  <nav class="flex-1 space-y-1 pr-4">
+    <a class="flex items-center gap-4 px-6 py-3 text-on-surface-variant hover:text-[#eeeef0] hover:bg-[#1d2023]/50 transition-all rounded-r-full text-sm uppercase tracking-widest" href="#">
+      <span class="material-symbols-outlined">dashboard</span><span>Dashboard</span>
+    </a>
+    <a class="flex items-center gap-4 px-6 py-3 bg-[#1d2023] text-[#00E5FF] rounded-r-full font-bold text-sm uppercase tracking-widest" href="#">
+      <span class="material-symbols-outlined">inventory_2</span><span>Inventário</span>
+    </a>
+    <a class="flex items-center gap-4 px-6 py-3 text-on-surface-variant hover:text-[#eeeef0] hover:bg-[#1d2023]/50 transition-all rounded-r-full text-sm uppercase tracking-widest" href="#">
+      <span class="material-symbols-outlined">shopping_cart</span><span>Encomendas</span>
+    </a>
+    <a class="flex items-center gap-4 px-6 py-3 text-on-surface-variant hover:text-[#eeeef0] hover:bg-[#1d2023]/50 transition-all rounded-r-full text-sm uppercase tracking-widest" href="#">
+      <span class="material-symbols-outlined">local_shipping</span><span>Fornecedores</span>
+    </a>
+    <a class="flex items-center gap-4 px-6 py-3 text-on-surface-variant hover:text-[#eeeef0] hover:bg-[#1d2023]/50 transition-all rounded-r-full text-sm uppercase tracking-widest" href="#">
+      <span class="material-symbols-outlined">analytics</span><span>Relatórios</span>
+    </a>
+  </nav>
+  <div class="px-6 space-y-3">
+    <button onclick="openAIPanel()" class="w-full bg-primary text-on-primary py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+      <span class="material-symbols-outlined text-sm">smart_toy</span>Assistente AI
+    </button>
+    <button onclick="openAddModal()" class="w-full border border-outline-variant/30 text-on-surface-variant py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:text-on-surface hover:border-outline-variant/60 transition-all">
+      <span class="material-symbols-outlined text-sm">add</span>Adicionar Material
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="md:ml-64 pt-16 pb-24 md:pb-8 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight" style="font-family:Manrope,sans-serif;">Stock de Materiais</h1>
+        <p class="text-sm text-on-surface-variant mt-1" id="last-updated">A carregar dados do Supabase...</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="loadInventory()" class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Recarregar">
+          <span class="material-symbols-outlined" id="refresh-icon">refresh</span>
+        </button>
+        <select id="filter-status" onchange="renderTable()" class="bg-surface-container-high border border-outline-variant/20 text-on-surface-variant text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-primary/40">
+          <option value="all">Todos</option>
+          <option value="ok">Confortável</option>
+          <option value="low">Stock Baixo</option>
+          <option value="critical">Crítico</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Category Tabs -->
+    <div class="mb-0 relative">
+      <div id="tab-bar" class="flex overflow-x-auto border-b border-outline-variant/20" style="scrollbar-width:thin;scrollbar-color:rgba(129,236,255,0.25) transparent;">
+        <button onclick="filterCat('all')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-primary text-primary transition-all whitespace-nowrap" data-cat="all">
+          <span class="material-symbols-outlined" style="font-size:14px;">grid_view</span>Todos
+          <span id="badge-all" class="ml-1 bg-primary/20 text-primary px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('Acrilico')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="Acrilico">
+          <span class="material-symbols-outlined" style="font-size:14px;">square</span>Acrílicos
+          <span id="badge-Acrilico" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('PVC')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="PVC">
+          <span class="material-symbols-outlined" style="font-size:14px;">layers</span>PVC
+          <span id="badge-PVC" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('ACM')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="ACM">
+          <span class="material-symbols-outlined" style="font-size:14px;">view_quilt</span>ACM
+          <span id="badge-ACM" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('Vinil')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="Vinil">
+          <span class="material-symbols-outlined" style="font-size:14px;">imagesearch_roller</span>Vinil
+          <span id="badge-Vinil" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('LEDs')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="LEDs">
+          <span class="material-symbols-outlined" style="font-size:14px;">lightbulb</span>LEDs
+          <span id="badge-LEDs" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('Electrica')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="Electrica">
+          <span class="material-symbols-outlined" style="font-size:14px;">bolt</span>Elétrico
+          <span id="badge-Electrica" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('Telas')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="Telas">
+          <span class="material-symbols-outlined" style="font-size:14px;">crop_landscape</span>Telas
+          <span id="badge-Telas" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('Consumíveis')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="Consumíveis">
+          <span class="material-symbols-outlined" style="font-size:14px;">category</span>Consumíveis
+          <span id="badge-Consumíveis" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+        <button onclick="filterCat('Fixação')" class="cat-btn flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-all whitespace-nowrap" data-cat="Fixação">
+          <span class="material-symbols-outlined" style="font-size:14px;">hardware</span>Fixação
+          <span id="badge-Fixação" class="ml-1 bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full text-[10px]"></span>
+        </button>
+      </div>
+      <!-- Fade right indicator -->
+      <div class="absolute right-0 top-0 bottom-0 w-12 pointer-events-none" style="background:linear-gradient(to right, transparent, #0c0e10);"></div>
+    </div>
+
+    <!-- Table desktop -->
+    <div class="hidden md:block overflow-hidden bg-surface-container-low rounded-b-xl rounded-tr-xl border border-outline-variant/10 border-t-0">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-surface-container text-on-surface-variant">
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold">Material</th>
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold">Categoria</th>
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold">Espessura</th>
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold">Medida</th>
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold">Estado</th>
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-center">Qtd.</th>
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-center">Mínimo</th>
+            <th class="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-right">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Mobile cards -->
+    <div id="mobile-cards" class="md:hidden space-y-4"></div>
+
+    <!-- Stats bento -->
+    <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="md:col-span-2 bg-surface-container-high rounded-3xl p-8 relative overflow-hidden">
+        <div class="relative z-10">
+          <h4 class="text-[10px] uppercase tracking-[0.2em] font-black text-on-surface-variant mb-6">Distribuição por Categoria</h4>
+          <div class="flex items-end gap-1 h-32 mb-4" id="bar-chart"></div>
+          <div class="flex justify-between text-[10px] font-bold text-on-surface-variant uppercase" id="bar-labels"></div>
+        </div>
+        <div class="absolute -right-16 -bottom-16 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
+      </div>
+      <div class="bg-surface-container-high rounded-3xl p-8 flex flex-col justify-between">
+        <div>
+          <h4 class="text-[10px] uppercase tracking-[0.2em] font-black text-on-surface-variant mb-2">Total SKUs</h4>
+          <div id="total-skus" class="text-5xl font-black text-primary tracking-tighter" style="font-family:Manrope,sans-serif;">—</div>
+        </div>
+        <div class="mt-4 space-y-2">
+          <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Confortável</span><span id="stat-ok" class="text-secondary font-bold">—</span></div>
+          <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Stock Baixo</span><span id="stat-low" class="text-tertiary font-bold">—</span></div>
+          <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Crítico</span><span id="stat-critical" class="text-error font-bold">—</span></div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-outline-variant/10">
+          <button onclick="openAIPanel();setTimeout(()=>sendQ('Gera uma ordem de compra para todos os materiais em stock crítico ou baixo'),400)"
+            class="w-full text-xs text-primary font-bold uppercase tracking-wider flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <span class="material-symbols-outlined text-sm">receipt_long</span>Gerar Ordem de Compra
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- AI OVERLAY -->
+<div id="ai-overlay" onclick="closeAIPanel()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"></div>
+
+<!-- AI PANEL -->
+<div id="ai-panel" class="fixed top-0 right-0 h-full w-full md:w-[480px] z-50 flex flex-col bg-[#0e1214] border-l border-outline-variant/20 shadow-2xl">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10 flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+        <span class="material-symbols-outlined text-primary" style="font-size:20px;">smart_toy</span>
+      </div>
+      <div>
+        <h3 class="font-bold text-sm" style="font-family:Manrope,sans-serif;">Assistente de Inventário</h3>
+        <div class="flex items-center gap-1.5">
+          <div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+          <span class="text-[10px] text-on-surface-variant uppercase tracking-wider">Online · Supabase Sync</span>
+        </div>
+      </div>
+    </div>
+    <button onclick="closeAIPanel()" class="p-2 text-on-surface-variant hover:text-on-surface transition-colors rounded-lg hover:bg-surface-container-high">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
+  <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4"></div>
+  <div id="quick-actions" class="px-6 py-3 border-t border-outline-variant/10 flex-shrink-0">
+    <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Ações Rápidas</p>
+    <div class="flex gap-2 flex-wrap">
+      <button class="btn-q" onclick="sendQ('Qual é o estado atual do inventário?')">📊 Resumo do stock</button>
+      <button class="btn-q" onclick="sendQ('Quais materiais estão em estado crítico ou baixo?')">⚠️ Alertas ativos</button>
+      <button class="btn-q" onclick="sendQ('Gera uma ordem de compra para todos os materiais em stock crítico ou baixo')">📋 Ordem de compra</button>
+      <button class="btn-q" onclick="sendQ('Que materiais devo encomendar esta semana e em que quantidades?')">💡 Sugestões</button>
+    </div>
+  </div>
+  <div class="px-6 py-4 border-t border-outline-variant/10 flex-shrink-0">
+    <div class="flex items-end gap-3">
+      <div class="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-2xl px-4 py-3 focus-within:border-primary/40 transition-colors">
+        <textarea id="chat-input" onkeydown="handleKey(event)" class="w-full bg-transparent text-sm text-on-surface placeholder-on-surface-variant resize-none focus:outline-none leading-relaxed" placeholder="Pergunta algo sobre o teu inventário..." rows="1" style="max-height:100px;overflow-y:auto;"></textarea>
+      </div>
+      <button onclick="sendMessage()" class="w-11 h-11 rounded-2xl bg-primary text-on-primary flex items-center justify-center hover:opacity-90 transition-opacity flex-shrink-0">
+        <span class="material-symbols-outlined" style="font-size:20px;">send</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MODAL -->
+<div id="add-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAddModal()"></div>
+  <div class="relative w-full max-w-md bg-[#111416] rounded-2xl border border-outline-variant/20 shadow-2xl p-6 z-10">
+    <h3 class="font-bold text-lg mb-6" style="font-family:Manrope,sans-serif;">Adicionar Material</h3>
+    <div class="space-y-4">
+      <div>
+        <label class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1 block">Nome</label>
+        <input id="add-name" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40" placeholder="Ex: Vinil Branco Brilhante">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1 block">Categoria</label>
+          <select id="add-cat" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-primary/40">
+            <option value="Acrilico">Acrílicos</option>
+            <option value="PVC">PVC</option>
+            <option value="ACM">ACM</option>
+            <option value="Vinil">Vinil</option>
+            <option value="LEDs">LEDs</option>
+            <option value="Electrica">Elétrico</option>
+            <option value="Telas">Telas</option>
+            <option value="Consumíveis">Consumíveis</option>
+            <option value="Fixação">Fixação</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1 block">Quantidade</label>
+          <input id="add-qty" type="number" min="0" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40" placeholder="0">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1 block">Espessura</label>
+          <input id="add-thick" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40" placeholder="Ex: 3mm">
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1 block">Medida</label>
+          <input id="add-measure" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40" placeholder="Ex: 2440×1220mm">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1 block">Unidade</label>
+          <input id="add-unit" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40" placeholder="folha, rolo, un.">
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1 block">Qtd. Mínima</label>
+          <input id="add-min" type="number" min="1" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40" placeholder="5">
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-3 mt-6">
+      <button onclick="closeAddModal()" class="flex-1 border border-outline-variant/30 text-on-surface-variant py-3 rounded-xl text-sm font-bold hover:border-outline-variant/60 transition-all">Cancelar</button>
+      <button onclick="addMaterial()" class="flex-1 bg-primary text-on-primary py-3 rounded-xl text-sm font-bold hover:opacity-90 transition-opacity">Guardar no Supabase</button>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<button onclick="openAIPanel()" class="fixed right-6 bottom-24 md:bottom-8 md:right-8 w-14 h-14 ai-fab text-on-primary rounded-2xl flex items-center justify-center z-40">
+  <span class="material-symbols-outlined text-2xl text-on-primary">smart_toy</span>
+</button>
+
+<!-- BOTTOM NAV MOBILE -->
+<nav class="fixed md:hidden bottom-0 left-0 w-full z-40 flex justify-around items-center px-4 pb-6 pt-2 bg-[#0c0e10]/90 backdrop-blur-xl border-t border-[#1d2023]">
+  <a class="flex flex-col items-center text-[#eeeef0]/40 p-2" href="#"><span class="material-symbols-outlined">home</span><span class="text-[10px] mt-1">Início</span></a>
+  <a class="flex flex-col items-center bg-[#1d2023] text-[#00E5FF] rounded-2xl p-2" href="#"><span class="material-symbols-outlined">inventory_2</span><span class="text-[10px] mt-1">Stock</span></a>
+  <button onclick="openAIPanel()" class="flex flex-col items-center text-[#eeeef0]/40 p-2"><span class="material-symbols-outlined">smart_toy</span><span class="text-[10px] mt-1">AI</span></button>
+  <a class="flex flex-col items-center text-[#eeeef0]/40 p-2" href="#"><span class="material-symbols-outlined">menu</span><span class="text-[10px] mt-1">Menu</span></a>
+</nav>
+
+<script>
+// ── SUPABASE ─────────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(
+  'https://wbmdvgeoibmrngclpsoe.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndibWR2Z2VvaWJtcm5nY2xwc29lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNDE1ODgsImV4cCI6MjA5MDkxNzU4OH0.K_vT_qYQGMh7vDet5o8WqyXtcqYxFGHK6zrO4hL7TDs'
+);
+
+// ── STATE ────────────────────────────────────────────────────
+let inventory = [], activeCat = 'all', chatHistory = [], alertDismissed = false, lastAlertText = '';
+
+// ── COLUMN MAP ───────────────────────────────────────────────
+const fromDB = r => ({
+  id: r.id, name: r.nome||'', cat: r.categoria||'',
+  espessura: r.espessura||'', measure: r.medida||'',
+  unidade: r.unidade||'', qty: Number(r.quantidade_atual)||0,
+  min: Number(r.quantidade_minima)||1, updated: r.ultima_atualizacao
+});
+
+// ── SYNC INDICATOR ───────────────────────────────────────────
+const syncDot = () => document.getElementById('sync-dot');
+const syncLabel = () => document.getElementById('sync-label');
+function setSyncState(s) {
+  syncDot().className = 'sync-dot' + (s !== 'ok' ? ' ' + s : '');
+  syncLabel().textContent = s==='syncing'?'A guardar...':s==='error'?'Erro de ligação':'Supabase Sync';
+}
+
+// ── LOAD ─────────────────────────────────────────────────────
+async function loadInventory() {
+  setSyncState('syncing');
+  showSkeletons();
+  const { data, error } = await db.from('stock_materiais').select('*').order('nome');
+  if (error) { setSyncState('error'); toast('Erro ao carregar dados','error'); console.error(error); return; }
+  inventory = data.map(fromDB);
+  setSyncState('ok');
+  const now = new Date().toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('last-updated').textContent = `Sincronizado às ${now} · ${inventory.length} materiais`;
+  renderTable();
+  toast(`${inventory.length} materiais carregados`,'ok');
+}
+
+// ── REALTIME ─────────────────────────────────────────────────
+function subscribeRealtime() {
+  db.channel('stock_changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'stock_materiais'}, ({eventType,new:nr,old:or}) => {
+      if (eventType==='INSERT') inventory.push(fromDB(nr));
+      else if (eventType==='UPDATE') { const i=inventory.findIndex(x=>x.id===nr.id); if(i!==-1) inventory[i]=fromDB(nr); }
+      else if (eventType==='DELETE') inventory=inventory.filter(x=>x.id!==or.id);
+      renderTable(); setSyncState('ok');
+      const now=new Date().toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+      document.getElementById('last-updated').textContent=`Atualizado em tempo real às ${now}`;
+    }).subscribe();
+}
+
+// ── SKELETON ─────────────────────────────────────────────────
+function showSkeletons() {
+  document.getElementById('inventory-tbody').innerHTML = Array(5).fill(0).map(()=>`
+    <tr>
+      <td class="px-6 py-5"><div class="skeleton h-4 w-48 rounded-full"></div></td>
+      <td class="px-6 py-5"><div class="skeleton h-6 w-20 rounded-full"></div></td>
+      <td class="px-6 py-5"><div class="skeleton h-4 w-12 rounded-full"></div></td>
+      <td class="px-6 py-5"><div class="skeleton h-4 w-24 rounded-full"></div></td>
+      <td class="px-6 py-5"><div class="skeleton h-4 w-16 rounded-full"></div></td>
+      <td class="px-6 py-5"><div class="skeleton h-6 w-10 rounded-full mx-auto"></div></td>
+      <td class="px-6 py-5"><div class="skeleton h-6 w-14 rounded-full mx-auto"></div></td>
+      <td class="px-6 py-5"><div class="skeleton h-8 w-20 rounded-lg ml-auto"></div></td>
+    </tr>`).join('');
+}
+
+// ── STATUS ───────────────────────────────────────────────────
+const getStatus = i => i.qty===0?'critical':i.qty<=i.min?'low':'ok';
+const statusLabel = s => ({ok:'Confortável',low:'Stock Baixo',critical:'Crítico'}[s]);
+const statusColor = s => ({ok:'secondary',low:'tertiary',critical:'error'}[s]);
+
+// ── RENDER ───────────────────────────────────────────────────
+function renderTable() {
+  const search = (document.getElementById('search-input').value||'').toLowerCase();
+  const fs = document.getElementById('filter-status').value;
+  const filtered = inventory.filter(item => {
+    const mc = activeCat==='all'||item.cat===activeCat;
+    const ms = item.name.toLowerCase().includes(search)||item.cat.toLowerCase().includes(search);
+    const mf = fs==='all'||getStatus(item)===fs;
+    return mc&&ms&&mf;
+  });
+
+  const tbody = document.getElementById('inventory-tbody');
+  tbody.innerHTML = '';
+  if (!filtered.length) {
+    tbody.innerHTML=`<tr><td colspan="8" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nenhum material encontrado</td></tr>`;
+  } else {
+    filtered.forEach(item => {
+      const s=getStatus(item), col=statusColor(s), crit=s==='critical';
+      const tr=document.createElement('tr');
+      tr.className=crit?'bg-error-container/5 hover:bg-error-container/10 transition-colors':'hover:bg-surface-container-high/50 transition-colors';
+      tr.innerHTML=`
+        <td class="px-6 py-5"><div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full bg-${col} flex-shrink-0 ${crit?'glow-ping':''}"></div>
+          <span class="font-medium text-sm">${esc(item.name)}</span></div></td>
+        <td class="px-6 py-5"><span class="bg-surface-container-high px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">${esc(item.cat)}</span></td>
+        <td class="px-6 py-5 text-sm text-on-surface-variant">${esc(item.espessura)||'—'}</td>
+        <td class="px-6 py-5 text-sm text-on-surface-variant">${esc(item.measure)||'—'}</td>
+        <td class="px-6 py-5"><span class="text-${col} text-xs font-bold">${statusLabel(s)}</span></td>
+        <td class="px-6 py-5 text-center font-bold text-lg text-${crit?'error':'on-surface'}" style="font-family:Manrope,sans-serif;">${item.qty}</td>
+        <td class="px-6 py-5 text-center">
+          <input class="thr-input" type="number" min="1" value="${item.min}" onchange="updateMin('${item.id}',this.value)" title="Stock mínimo">
+        </td>
+        <td class="px-6 py-5 text-right"><div class="flex items-center justify-end gap-2">
+          <button onclick="adjustQty('${item.id}',-1)" class="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-on-surface hover:text-primary transition-colors ${item.qty===0?'opacity-30 cursor-not-allowed':''}">
+            <span class="material-symbols-outlined text-sm">remove</span></button>
+          <button onclick="adjustQty('${item.id}',1)" class="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-on-surface hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-sm">add</span></button>
+          ${crit?`<button onclick="openAIPanel();setTimeout(()=>sendQ('Gera uma ordem de compra urgente para: ${esc(item.name)}'),400)" class="w-8 h-8 rounded-lg bg-error text-on-error flex items-center justify-center hover:opacity-90" title="Encomendar"><span class="material-symbols-outlined text-sm">shopping_basket</span></button>`:''}
+        </div></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  renderCards(filtered);
+  updateStats();
+  updateBarChart();
+  updateBadges();
+  checkAlerts();
+}
+
+// ── MOBILE CARDS ─────────────────────────────────────────────
+function renderCards(filtered) {
+  const c = document.getElementById('mobile-cards');
+  c.innerHTML = '';
+  filtered.forEach(item => {
+    const s=getStatus(item),col=statusColor(s),crit=s==='critical';
+    const d=document.createElement('div');
+    d.className=crit?'bg-error-container/10 p-5 rounded-2xl border border-error-container/20':'bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10';
+    d.innerHTML=`
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <div class="w-1.5 h-1.5 rounded-full bg-${col} ${crit?'glow-ping':''}"></div>
+            <span class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">${esc(item.cat)}</span>
+          </div>
+          <h3 class="text-base font-bold text-${crit?'error':'on-surface'}">${esc(item.name)}</h3>
+          <p class="text-xs text-on-surface-variant">${esc(item.espessura)} ${esc(item.measure)}</p>
+        </div>
+        <span class="text-${col} text-[10px] font-bold uppercase border border-current/20 px-3 py-1 rounded-full">${statusLabel(s)}</span>
+      </div>
+      <div class="flex items-center justify-between mt-4">
+        <div>
+          <span class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant block">Em Stock</span>
+          <span class="text-2xl font-bold text-${crit?'error':'on-surface'}" style="font-family:Manrope,sans-serif;">${item.qty} <span class="text-sm font-normal text-on-surface-variant">${esc(item.unidade)}</span></span>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="adjustQty('${item.id}',-1)" class="w-12 h-12 rounded-2xl bg-surface-container-highest flex items-center justify-center active:scale-90 transition-transform"><span class="material-symbols-outlined">remove</span></button>
+          <button onclick="adjustQty('${item.id}',1)" class="w-12 h-12 rounded-2xl bg-primary text-on-primary flex items-center justify-center active:scale-90 transition-transform"><span class="material-symbols-outlined">add</span></button>
+        </div>
+      </div>`;
+    c.appendChild(d);
+  });
+}
+
+// ── ADJUST QTY ───────────────────────────────────────────────
+async function adjustQty(id, delta) {
+  const item = inventory.find(i=>i.id===id);
+  if (!item) return;
+  if (delta<0&&item.qty===0) return;
+  const newQty = Math.max(0, item.qty+delta);
+  item.qty = newQty; renderTable(); setSyncState('syncing');
+  const {error} = await db.from('stock_materiais')
+    .update({quantidade_atual:newQty, ultima_atualizacao:new Date().toISOString()}).eq('id',id);
+  if (error) { item.qty-=delta; renderTable(); setSyncState('error'); toast('Erro ao atualizar','error'); }
+  else { setSyncState('ok'); alertDismissed=false; checkAlerts(); }
+}
+
+// ── UPDATE MIN ───────────────────────────────────────────────
+async function updateMin(id, val) {
+  const item = inventory.find(i=>i.id===id);
+  if (!item) return;
+  const newMin = Math.max(1,parseInt(val)||1);
+  item.min = newMin; setSyncState('syncing');
+  const {error} = await db.from('stock_materiais')
+    .update({quantidade_minima:newMin, ultima_atualizacao:new Date().toISOString()}).eq('id',id);
+  if (error) { setSyncState('error'); toast('Erro ao atualizar mínimo','error'); }
+  else { setSyncState('ok'); alertDismissed=false; renderTable(); toast('Mínimo atualizado','ok'); }
+}
+
+// ── ADD MATERIAL ─────────────────────────────────────────────
+async function addMaterial() {
+  const name = document.getElementById('add-name').value.trim();
+  if (!name) return;
+  setSyncState('syncing');
+  const {data,error} = await db.from('stock_materiais').insert({
+    nome: name, categoria: document.getElementById('add-cat').value,
+    espessura: document.getElementById('add-thick').value.trim()||null,
+    medida: document.getElementById('add-measure').value.trim()||null,
+    unidade: document.getElementById('add-unit').value.trim()||null,
+    quantidade_atual: parseInt(document.getElementById('add-qty').value)||0,
+    quantidade_minima: parseInt(document.getElementById('add-min').value)||5,
+    ultima_atualizacao: new Date().toISOString()
+  }).select().single();
+  if (error) { setSyncState('error'); toast('Erro ao adicionar','error'); console.error(error); return; }
+  inventory.push(fromDB(data));
+  closeAddModal();
+  ['add-name','add-qty','add-measure','add-thick','add-unit','add-min'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderTable(); setSyncState('ok'); toast(`"${name}" adicionado`,'ok');
+}
+
+// ── STATS ────────────────────────────────────────────────────
+function updateStats() {
+  const ok=inventory.filter(i=>getStatus(i)==='ok').length;
+  const low=inventory.filter(i=>getStatus(i)==='low').length;
+  const crit=inventory.filter(i=>getStatus(i)==='critical').length;
+  document.getElementById('total-skus').textContent=inventory.length;
+  document.getElementById('stat-ok').textContent=ok;
+  document.getElementById('stat-low').textContent=low;
+  document.getElementById('stat-critical').textContent=crit;
+  const alerts=crit+low;
+  const badge=document.getElementById('alert-badge');
+  badge.classList.toggle('hidden',alerts===0);
+  if(alerts>0) badge.textContent=alerts>9?'9+':alerts;
+}
+
+// ── BAR CHART ────────────────────────────────────────────────
+function updateBarChart() {
+  const cats=['Acrilico','PVC','ACM','Vinil','LEDs','Electrica','Telas','Consumíveis','Fixação'];
+  const lbls=['Acríl.','PVC','ACM','Vinil','LEDs','Elétr.','Telas','Cons.','Fix.'];
+  const counts=cats.map(c=>inventory.filter(i=>i.cat===c).reduce((a,i)=>a+i.qty,0));
+  const max=Math.max(...counts,1);
+  const chart=document.getElementById('bar-chart'), labelsEl=document.getElementById('bar-labels');
+  chart.innerHTML=''; labelsEl.innerHTML='';
+  cats.forEach((c,i)=>{
+    const pct=Math.max(counts[i]/max*100,4);
+    const div=document.createElement('div');
+    div.className='flex-1 rounded-t-lg transition-all cursor-pointer hover:opacity-80';
+    div.style.cssText=`height:${pct}%;background:rgba(129,236,255,${counts[i]>0?0.3:0.07})`;
+    div.title=`${lbls[i]}: ${counts[i]}`;
+    chart.appendChild(div);
+    const span=document.createElement('span');
+    span.textContent=lbls[i]; labelsEl.appendChild(span);
+  });
+}
+
+// ── ALERTS ───────────────────────────────────────────────────
+function checkAlerts() {
+  const crit=inventory.filter(i=>getStatus(i)==='critical');
+  const low=inventory.filter(i=>getStatus(i)==='low');
+  const banner=document.getElementById('alert-banner');
+  if ((crit.length||low.length)&&!alertDismissed) {
+    let msg='';
+    if(crit.length) msg+=`⚡ ${crit.map(i=>i.name).join(', ')} — stock a ZERO. `;
+    if(low.length) msg+=`⚠️ ${low.map(i=>i.name).join(', ')} — abaixo do mínimo.`;
+    if(msg!==lastAlertText){lastAlertText=msg;document.getElementById('alert-text').textContent=msg;banner.classList.remove('hidden');}
+  } else { banner.classList.add('hidden'); }
+}
+function closeAlert(){alertDismissed=true;document.getElementById('alert-banner').classList.add('hidden');}
+
+// ── TOAST ────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, type='ok') {
+  const el=document.getElementById('toast');
+  document.getElementById('toast-icon').textContent=type==='ok'?'check_circle':'error';
+  document.getElementById('toast-icon').className=`material-symbols-outlined text-sm ${type==='ok'?'text-secondary':'text-error'}`;
+  document.getElementById('toast-msg').textContent=msg;
+  el.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ── FILTER ───────────────────────────────────────────────────
+function filterCat(cat) {
+  activeCat=cat;
+  document.querySelectorAll('.cat-btn').forEach(btn=>{
+    const a=btn.dataset.cat===cat;
+    btn.classList.toggle('border-primary',a);
+    btn.classList.toggle('text-primary',a);
+    btn.classList.toggle('border-transparent',!a);
+    btn.classList.toggle('text-on-surface-variant',!a);
+  });
+  renderTable();
+}
+
+function updateBadges() {
+  const cats=['all','Acrilico','PVC','ACM','Vinil','LEDs','Electrica','Telas','Consumíveis','Fixação'];
+  cats.forEach(cat => {
+    const el = document.getElementById('badge-'+cat);
+    if (!el) return;
+    const count = cat==='all' ? inventory.length : inventory.filter(i=>i.cat===cat).length;
+    const hasAlert = cat==='all'
+      ? inventory.some(i=>getStatus(i)!=='ok')
+      : inventory.filter(i=>i.cat===cat).some(i=>getStatus(i)!=='ok');
+    el.textContent = count;
+    const isActive = activeCat===cat;
+    if (hasAlert) {
+      el.className='ml-1 px-2 py-0.5 rounded-full text-[10px] bg-error/20 text-error';
+    } else if (isActive) {
+      el.className='ml-1 px-2 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary';
+    } else {
+      el.className='ml-1 px-2 py-0.5 rounded-full text-[10px] bg-surface-container-highest text-on-surface-variant';
+    }
+  });
+}
+
+// ── MODALS ───────────────────────────────────────────────────
+function openAddModal(){document.getElementById('add-modal').classList.remove('hidden');document.getElementById('add-modal').classList.add('flex');}
+function closeAddModal(){document.getElementById('add-modal').classList.add('hidden');document.getElementById('add-modal').classList.remove('flex');}
+
+// ── AI PANEL ─────────────────────────────────────────────────
+function openAIPanel(){
+  document.getElementById('ai-panel').classList.add('open');
+  document.getElementById('ai-overlay').classList.add('open');
+  if(!chatHistory.length) addAIMsg(`Olá! 👋 Sou o teu assistente de inventário da **Virtual Neon**.\n\nEstou ligado ao teu Supabase em tempo real. Posso ajudar-te com:\n• Análise do estado do stock\n• Alertas e materiais críticos\n• Geração de ordens de compra\n• Sugestões de reposição\n\nO que precisas?`);
+}
+function closeAIPanel(){document.getElementById('ai-panel').classList.remove('open');document.getElementById('ai-overlay').classList.remove('open');}
+
+// ── AI CHAT ──────────────────────────────────────────────────
+function getCtx(){
+  const today=new Date().toLocaleDateString('pt-PT',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const lines=inventory.map(i=>`- ${i.name} (${i.cat}${i.espessura?' · '+i.espessura:''}): ${i.qty} ${i.unidade||'un.'} [mínimo: ${i.min}] → ${statusLabel(getStatus(i))}`);
+  return `Data: ${today}\n\nInventário atual da Virtual Neon (Supabase - tempo real):\n${lines.join('\n')}`;
+}
+
+function getSysPrompt(){
+  return `És o assistente de inventário da "Virtual Neon", empresa portuguesa de reclames luminosos. Respondes SEMPRE em português de Portugal. Tens acesso ao inventário em tempo real via Supabase.\n\nPodes: analisar stock, gerar ordens de compra profissionais, dar sugestões de reposição.\n\nPara ordens de compra usa EXATAMENTE:\n═══════════════════════════════════\nORDEM DE COMPRA — VIRTUAL NEON\nData: [data]\nRef: OC-[4 dígitos]\n═══════════════════════════════════\nFORNECEDOR: [fornecedor]\n\nMATERIAL | QTD | UNID\n---------|-----|-----\n[item] | [qtd] | [unidade]\n\nNOTAS: [observações]\nUrgência: [Alta/Média/Baixa]\n═══════════════════════════════════\n\nRepõe ao dobro do mínimo. Sê direto e profissional.`;
+}
+
+async function sendMessage(){
+  const input=document.getElementById('chat-input');
+  const text=input.value.trim(); if(!text) return;
+  input.value=''; input.style.height='auto'; await doSend(text);
+}
+async function sendQ(text){await doSend(text);}
+
+async function doSend(text){
+  addUserMsg(text);
+  document.getElementById('quick-actions').style.display='none';
+  const typing=addTyping();
+  chatHistory.push({role:'user',content:`${getCtx()}\n\n---\nPergunta: ${text}`});
+  try {
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:getSysPrompt(),messages:chatHistory})
+    });
+    const data=await res.json(); typing.remove();
+    const reply=data.content?.map(b=>b.text||'').join('')||'Ocorreu um erro.';
+    chatHistory.push({role:'assistant',content:reply});
+    addAIMsg(reply, reply.includes('ORDEM DE COMPRA'));
+  } catch(e) { typing.remove(); addAIMsg('❌ Erro de ligação. Tenta novamente.'); }
+}
+
+function addUserMsg(text){
+  const el=document.createElement('div'); el.className='flex justify-end';
+  el.innerHTML=`<div class="bubble-user px-4 py-3 max-w-[80%]"><p class="text-sm text-on-surface">${esc(text)}</p></div>`;
+  document.getElementById('chat-messages').appendChild(el); scrollChat();
+}
+
+function addAIMsg(text, isOrder=false){
+  const el=document.createElement('div'); el.className='flex flex-col gap-2';
+  if(isOrder) el.dataset.orderText=text;
+  const fmt=esc(text)
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/═+/g,'<span style="color:rgba(129,236,255,0.4)">═══════════════════════</span>')
+    .replace(/─+/g,'<span style="color:rgba(70,72,74,0.6)">──────────────</span>')
+    .replace(/\n/g,'<br>');
+  el.innerHTML=`
+    <div class="flex gap-3 items-start">
+      <div class="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <span class="material-symbols-outlined text-primary" style="font-size:14px;">smart_toy</span>
+      </div>
+      <div class="bubble-ai px-4 py-3 max-w-[88%] ${isOrder?'po-card w-full':''}">
+        <div class="text-sm text-on-surface leading-relaxed ai-text">${fmt}</div>
+      </div>
+    </div>
+    ${isOrder?`<div class="flex gap-2 ml-10 mt-1">
+      <button onclick="copyOrder(this)" class="btn-q flex items-center gap-1"><span class="material-symbols-outlined text-sm">content_copy</span> Copiar</button>
+      <button onclick="dlPDF(this)" class="btn-q flex items-center gap-1"><span class="material-symbols-outlined text-sm">download</span> PDF</button>
+    </div>`:''}`;
+  document.getElementById('chat-messages').appendChild(el); scrollChat();
+}
+
+function addTyping(){
+  const el=document.createElement('div'); el.className='flex gap-3 items-center';
+  el.innerHTML=`<div class="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-primary" style="font-size:14px;">smart_toy</span></div>
+    <div class="bubble-ai px-4 py-3 flex gap-1.5 items-center">
+      <span class="typing-dot w-1.5 h-1.5 rounded-full bg-primary"></span>
+      <span class="typing-dot w-1.5 h-1.5 rounded-full bg-primary"></span>
+      <span class="typing-dot w-1.5 h-1.5 rounded-full bg-primary"></span>
+    </div>`;
+  document.getElementById('chat-messages').appendChild(el); scrollChat(); return el;
+}
+
+function scrollChat(){const el=document.getElementById('chat-messages');setTimeout(()=>{el.scrollTop=el.scrollHeight;},50);}
+
+function handleKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+  const ta=document.getElementById('chat-input');
+  ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px';
+}
+
+// ── ORDER ACTIONS ────────────────────────────────────────────
+function copyOrder(btn){
+  const card=btn.closest('.flex.flex-col');
+  const text=card?.dataset?.orderText||card?.querySelector('.ai-text')?.innerText||'';
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.innerHTML='<span class="material-symbols-outlined text-sm">check</span> Copiado!';
+    setTimeout(()=>{btn.innerHTML='<span class="material-symbols-outlined text-sm">content_copy</span> Copiar';},2000);
+  });
+}
+
+function dlPDF(btn){
+  const card=btn.closest('.flex.flex-col');
+  const raw=card?.dataset?.orderText||'';
+  const today=new Date().toLocaleDateString('pt-PT');
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ordem de Compra - Virtual Neon</title>
+  <style>body{font-family:'Courier New',monospace;padding:40px;max-width:700px;margin:0 auto}h1{font-family:Arial;font-size:20px;border-bottom:2px solid #000;padding-bottom:8px}pre{white-space:pre-wrap;font-size:13px;line-height:1.7}.footer{margin-top:40px;font-size:11px;color:#666;font-family:Arial}@media print{button{display:none}}</style></head>
+  <body><h1>Virtual Neon · Ordem de Compra</h1><pre>${raw}</pre>
+  <div class="footer">Gerado por LumeInventory · Supabase Sync · ${today}</div>
+  <br><button onclick="window.print()" style="padding:8px 20px;background:#000;color:#fff;border:none;cursor:pointer;font-size:14px;">🖨️ Imprimir / Guardar PDF</button>
+  </body></html>`);
+  win.document.close();
+}
+
+// ── UTILS ────────────────────────────────────────────────────
+function esc(t){if(!t)return '';return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── BOOT ─────────────────────────────────────────────────────
+(async()=>{await loadInventory();subscribeRealtime();})();
+</script>
+</body>
+</html>
