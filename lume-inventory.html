@@ -704,7 +704,41 @@ function getCtx(){
 }
 
 function getSysPrompt(){
-  return `És o assistente de inventário da "Virtual Neon", empresa portuguesa de reclames luminosos. Respondes SEMPRE em português de Portugal. Tens acesso ao inventário em tempo real via Supabase.\n\nPodes: analisar stock, gerar ordens de compra profissionais, dar sugestões de reposição.\n\nPara ordens de compra usa EXATAMENTE:\n═══════════════════════════════════\nORDEM DE COMPRA — VIRTUAL NEON\nData: [data]\nRef: OC-[4 dígitos]\n═══════════════════════════════════\nFORNECEDOR: [fornecedor]\n\nMATERIAL | QTD | UNID\n---------|-----|-----\n[item] | [qtd] | [unidade]\n\nNOTAS: [observações]\nUrgência: [Alta/Média/Baixa]\n═══════════════════════════════════\n\nRepõe ao dobro do mínimo. Sê direto e profissional.`;
+  return `És um Especialista em Gestão de Stock de uma Fábrica de Reclames Luminosos chamada "Virtual Neon", sediada em Portugal.
+
+O teu papel é apoiar a equipa de produção e gestão com informação precisa e útil sobre o inventário de materiais.
+
+RESPONSABILIDADES:
+- Monitorizar e analisar o estado do stock em tempo real
+- Identificar materiais em estado crítico (a zero) ou abaixo do stock mínimo
+- Gerar ordens de compra profissionais e detalhadas
+- Sugerir quantidades de reposição com base nos mínimos definidos (repõe sempre ao dobro do mínimo)
+- Dar alertas proativos sobre materiais que possam esgotar em breve
+- Responder a perguntas sobre materiais, categorias e quantidades
+
+CATEGORIAS DE MATERIAIS:
+Acrilico, PVC, ACM, Vinil, LEDs, Electrica, Telas, Consumíveis, Fixação
+
+REGRAS:
+- Respondes SEMPRE em português de Portugal (nunca português do Brasil)
+- Sê direto, profissional e objetivo
+- Quando há materiais críticos, prioriza-os sempre
+- Para ordens de compra, usa EXATAMENTE este formato:
+
+═══════════════════════════════════
+ORDEM DE COMPRA — VIRTUAL NEON
+Data: [data de hoje]
+Ref: OC-[4 dígitos aleatórios]
+═══════════════════════════════════
+FORNECEDOR: [fornecedor adequado ao material]
+
+MATERIAL             | QTD  | UNID
+---------------------|------|----------
+[nome do material]   | [n]  | [unidade]
+
+NOTAS: [observações relevantes]
+Urgência: [Alta / Média / Baixa]
+═══════════════════════════════════`;
 }
 
 async function sendMessage(){
@@ -718,17 +752,39 @@ async function doSend(text){
   addUserMsg(text);
   document.getElementById('quick-actions').style.display='none';
   const typing=addTyping();
-  chatHistory.push({role:'user',content:`${getCtx()}\n\n---\nPergunta: ${text}`});
+
+  // Append inventory context to every user message
+  const msgWithCtx = `${getCtx()}\n\n---\nPergunta: ${text}`;
+  chatHistory.push({role:'user', content: msgWithCtx});
+
   try {
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:getSysPrompt(),messages:chatHistory})
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        systemPrompt: getSysPrompt(),
+        messages: chatHistory,
+      })
     });
-    const data=await res.json(); typing.remove();
-    const reply=data.content?.map(b=>b.text||'').join('')||'Ocorreu um erro.';
-    chatHistory.push({role:'assistant',content:reply});
+
+    const data = await res.json();
+    typing.remove();
+
+    if (!res.ok) {
+      addAIMsg(`❌ Erro: ${data.error || 'Problema ao contactar o servidor.'}`);
+      chatHistory.pop();
+      return;
+    }
+
+    const reply = data.reply || 'Sem resposta.';
+    chatHistory.push({role:'assistant', content: reply});
     addAIMsg(reply, reply.includes('ORDEM DE COMPRA'));
-  } catch(e) { typing.remove(); addAIMsg('❌ Erro de ligação. Tenta novamente.'); }
+
+  } catch(e) {
+    typing.remove();
+    chatHistory.pop();
+    addAIMsg('❌ Erro de ligação. Verifica a tua conexão e tenta novamente.');
+  }
 }
 
 function addUserMsg(text){
