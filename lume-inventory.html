@@ -417,14 +417,19 @@ function setSyncState(s) {
 async function loadInventory() {
   setSyncState('syncing');
   showSkeletons();
-  const { data, error } = await db.from('stock_materiais').select('*').order('nome');
-  if (error) { setSyncState('error'); toast('Erro ao carregar dados','error'); console.error(error); return; }
+  const { data, error } = await db
+    .from('stock_materiais')
+    .select('*')
+    .order('nome', { ascending: true });
+  if (error) { setSyncState('error'); toast('Erro ao carregar dados do Supabase','error'); console.error(error); return; }
   inventory = data.map(fromDB);
   setSyncState('ok');
   const now = new Date().toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
   document.getElementById('last-updated').textContent = `Sincronizado às ${now} · ${inventory.length} materiais`;
   renderTable();
   toast(`${inventory.length} materiais carregados`,'ok');
+  console.log('Inventário carregado:', inventory.length, 'registos');
+  console.log('Amostra:', inventory.slice(0,3).map(i=>({id:i.id, name:i.name, qty:i.qty})));
 }
 
 // ── REALTIME ─────────────────────────────────────────────────
@@ -550,9 +555,13 @@ async function adjustQty(id, delta) {
   if (!item) return;
   if (delta<0&&item.qty===0) return;
   const newQty = Math.max(0, item.qty+delta);
+  console.log('A atualizar:', id, 'de', item.qty, 'para', newQty);
   item.qty = newQty; renderTable(); setSyncState('syncing');
-  const {error} = await db.from('stock_materiais')
-    .update({quantidade_atual:newQty, ultima_atualizacao:new Date().toISOString()}).eq('id',id);
+  const {data, error} = await db.from('stock_materiais')
+    .update({quantidade_atual:newQty, ultima_atualizacao:new Date().toISOString()})
+    .eq('id',id)
+    .select();
+  console.log('Resultado update:', {data, error});
   if (error) { item.qty-=delta; renderTable(); setSyncState('error'); toast('Erro ao atualizar','error'); }
   else { setSyncState('ok'); alertDismissed=false; checkAlerts(); }
 }
